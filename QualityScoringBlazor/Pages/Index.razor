@@ -1,0 +1,229 @@
+﻿@page "/"
+@using System.IO
+@using QualityScoringBlazor.Services
+@inject ILabelService LabelService
+@inject ILabelServiceLabelNumbers LabelServiceLabelNumbers
+@inject IJSRuntime Js
+@inject NavigationManager NavigationManager
+
+<PageTitle>Labels</PageTitle>
+
+<h1>Label Generator</h1>
+
+@if (_okayUpload)
+{
+    <h5>Upload xlsx route version.xlsx</h5>
+
+    <InputFile OnChange="UploadFile" accept=".xlsx" />
+    <br />
+    <br />
+}
+
+@if (_okayDownload && File.Exists(Path.Combine(_pathBase, "Downloads" + "\\Labels.pdf")))
+{
+    <h5>Download Labels.pdf</h5>
+    <button @onclick="Download" type="button" class="btn btn-success">Download</button>
+    <br />
+    <br />
+}
+
+@if (_okayDelete && File.Exists(Path.Combine(_pathBase, "Downloads" + "\\Labels.pdf")))
+{
+    <h5>Delete Labels.pdf</h5>
+    <button @onclick="Delete" type="button" class="btn btn-danger">Delete</button>
+}
+
+@if (_processing)
+{
+    <br />
+    <br />
+    <br />
+    <br />
+    <h2>Processing...</h2>
+}
+
+@if (_errors.Count > 0)
+{
+    _processing = false;
+    <ul clsss="text-danger">
+        @foreach (var error in _errors)
+        {
+            <li>@error</li>
+        }
+    </ul>
+}
+
+@code {
+
+    private readonly long _maxFileSize = 1024 * 1024 * 3;
+    private readonly int _maxAllowedFiles = 1;
+    private List<string> _errors = new();
+    private bool _okayDownload = false;
+    private bool _okayUpload = false;
+    private bool _okayDelete = false;
+    private bool _processing = false;
+    private readonly string _pathBase = AppDomain.CurrentDomain.BaseDirectory;
+    private const string FileName = "Labels.pdf";
+
+    protected override Task OnInitializedAsync()
+    {
+        _errors.Clear();
+        _processing = false;
+        var pathDownload = Path.Combine(_pathBase, "Downloads"+ "\\Labels.pdf");
+
+        if (!File.Exists(pathDownload))
+        {
+            _okayUpload = true;
+            _okayDownload = false;
+            _okayDelete = false;
+        }
+
+        if (File.Exists(pathDownload))
+        {
+            _okayUpload = false;
+            _okayDownload = true;
+            _okayDelete = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task UploadFile(InputFileChangeEventArgs e)
+    {
+        _errors.Clear();
+        _okayUpload = false;
+        _processing = true;
+
+        if (e.FileCount > _maxAllowedFiles)
+        {
+            _errors.Add($"Error: Attempting to upload {e.FileCount} files, but only {_maxAllowedFiles} files are allowed");
+            return;
+        }
+        try
+        {
+            var fileName = e.File.Name;
+
+            var newFileName = Path.ChangeExtension("xlsx route version", Path.GetExtension(fileName));
+
+            Directory.CreateDirectory(Path.Combine(_pathBase, "Uploads"));
+            Directory.CreateDirectory(Path.Combine(_pathBase, "Downloads"));
+            Directory.CreateDirectory(Path.Combine(_pathBase, "Process"));
+            Directory.CreateDirectory(Path.Combine(_pathBase, "Baks"));
+            Directory.CreateDirectory(Path.Combine(_pathBase, "Pdfs"));
+
+            var pathPdfs = Path.Combine(_pathBase,"Pdfs");
+            Array.ForEach(Directory.GetFiles(pathPdfs), File.Delete);
+
+            var pathUploads = Path.Combine(_pathBase, "Uploads"); 
+            Array.ForEach(Directory.GetFiles(pathUploads), File.Delete);
+
+            
+            var path = Path.Combine(pathUploads, newFileName);
+
+            await using FileStream fs = new(path, FileMode.Create);
+            await e.File.OpenReadStream(_maxFileSize).CopyToAsync(fs);
+
+            if (File.Exists(path))
+            {
+                //LabelService.GenerateLabels();
+                LabelServiceLabelNumbers.GenerateLabels();
+                _okayUpload = false;
+                NavigateToYourUrl();
+            }
+
+            var pathDownloads = Path.Combine(_pathBase, "Downloads", "Labels.pdf");
+            if (File.Exists(pathDownloads))
+            {
+                _okayDownload = true;
+                _okayDelete = true;
+                _processing = false;
+                NavigateToYourUrl();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"File: {e.File.Name} Error: {ex.Message}");
+            throw;
+        }
+    }
+
+    private Stream GetFileStream()
+    {
+        var pathDownload = Path.Combine(_pathBase, "Downloads" + "\\Labels.pdf");
+        return File.OpenRead(pathDownload);
+    }
+
+    private async Task DownloadFileFromStream()
+    {
+        var fileStream = GetFileStream();
+        var pathDownload = Path.Combine(_pathBase, "Downloads" + "\\Labels.pdf");
+
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await Js.InvokeVoidAsync("downloadFileFromStream", FileName, streamRef);
+
+        try
+        {
+            if (File.Exists(pathDownload))
+            {
+                File.Delete(pathDownload);
+            }
+
+            _okayDownload = false;
+            _okayDelete = false;
+            _okayUpload = true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine
+                (e);
+            throw;
+        }
+    }
+
+    private Task DeleteDownloadFile()
+    {
+        var pathDownload = Path.Combine(_pathBase, "Downloads" + "\\Labels.pdf");
+        try
+        {
+            if (File.Exists(pathDownload))
+            {
+                File.Delete(pathDownload);
+            }
+
+            _okayDownload = false;
+            _okayDelete = false;
+            _okayUpload = true;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task Download()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DOWNLOAD?");
+        if (confirmed)
+        {
+            await DownloadFileFromStream();
+        }
+    }
+
+    private async Task Delete()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DELETE?");
+        if (confirmed)
+        {
+            await DeleteDownloadFile();
+        }
+    }
+
+    private void NavigateToYourUrl() => NavigationManager.NavigateTo("/");
+
+}
+

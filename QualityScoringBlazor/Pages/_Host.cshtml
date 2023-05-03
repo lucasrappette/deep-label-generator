@@ -1,0 +1,10 @@
+﻿@page "/"
+@namespace QualityScoringBlazor.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+}
+
+<component type="typeof(App)" render-mode="ServerPrerendered" />
+<script>Blazor.defaultReconnectionHandler._reconnectCallback = function (d) { document.location.reload(); }</script>
+

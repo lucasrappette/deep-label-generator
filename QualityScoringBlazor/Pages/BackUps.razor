@@ -1,0 +1,205 @@
+﻿@page "/backups"
+@using System.IO
+@using QualityScoringBlazor.Services
+@inject ILabelService LabelService
+@inject IJSRuntime Js
+@inject NavigationManager NavigationManager
+
+<PageTitle>Backups</PageTitle>
+
+<h1 style="color: red">!!! Backups !!!</h1>
+<h1 style="color: red">??? Are you sure you want to be on this page ???</h1>
+
+@if (_okayDownload && File.Exists(Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx")))
+{
+    <br />
+    <br />
+    <h3 style="color: blue">xlsx route version.xlsx</h3>
+    <h5>Download xlsx route version.xlsx</h5>
+    <button @onclick="Download" type="button" class="btn btn-success">Download</button>
+    <br />
+    <br />
+}
+
+@if (_okayDelete && File.Exists(Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx")))
+{
+    <h5>Delete xlsx route version.xlsx</h5>
+    <button @onclick="Delete" type="button" class="btn btn-danger">Delete</button>
+    <br />
+    <br />
+}
+
+@if (_okayDownloadPdf && File.Exists(Path.Combine(_pathBase, "Baks" + "\\Labels.pdf")))
+{
+    <br />
+    <br />
+    <h3 style="color: blue">Labels.pdf</h3>
+    <h5>Download Labels.pdf</h5>
+    <button @onclick="DownloadPdf" type="button" class="btn btn-success">Download</button>
+    <br />
+    <br />
+}
+
+@if (_okayDeletePdf && File.Exists(Path.Combine(_pathBase, "Baks" + "\\Labels.pdf")))
+{
+    <h5>Delete Labels.pdf</h5>
+    <button @onclick="DeletePdf" type="button" class="btn btn-danger">Delete</button>
+}
+
+@code {
+
+    private bool _okayDownload = false;
+    private bool _okayDelete = false;
+    private bool _okayDownloadPdf = false;
+    private bool _okayDeletePdf = false;
+    private readonly string _pathBase = AppDomain.CurrentDomain.BaseDirectory;
+    private const string FileName = "xlsx route version.xlsx";
+    private const string FileNamePdf = "Labels.pdf";
+
+    protected override Task OnInitializedAsync()
+    {
+        var pathUploads = Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx");
+        var pathBaks = Path.Combine(_pathBase, "Baks" + "\\Labels.pdf");
+
+        if (!File.Exists(pathUploads))
+        {
+            _okayDownload = false;
+            _okayDelete = false;
+        }
+        if (!File.Exists(pathBaks))
+        {
+            _okayDownloadPdf = false;
+            _okayDeletePdf = false;
+        }
+
+        if (File.Exists(pathUploads))
+        {
+            _okayDownload = true;
+            _okayDelete = true;
+        }
+
+        if (File.Exists(pathBaks))
+        {
+            _okayDownloadPdf = true;
+            _okayDeletePdf = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Stream GetFileStream()
+    {
+        var pathUploads = Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx");
+        return File.OpenRead(pathUploads);
+    }
+
+    private async Task DownloadFileFromStream()
+    {
+        var fileStream = GetFileStream();
+        Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx");
+
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await Js.InvokeVoidAsync("downloadFileFromStream", FileName, streamRef);
+    }
+
+    private Task DeleteDownloadFile()
+    {
+        var pathUploads = Path.Combine(_pathBase, "Uploads" + "\\xlsx route version.xlsx");
+        try
+        {
+            if (File.Exists(pathUploads))
+            {
+                File.Delete(pathUploads);
+            }
+
+            _okayDownload = false;
+            _okayDelete = false;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        return Task.CompletedTask;
+    }
+
+    private Stream GetFileStreamPdf()
+    {
+        var pathBaks = Path.Combine(_pathBase, "Baks" + "\\Labels.pdf");
+        return File.OpenRead(pathBaks);
+    }
+
+    private async Task DownloadFileFromStreamPdf()
+    {
+        var fileStream = GetFileStreamPdf();
+
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await Js.InvokeVoidAsync("downloadFileFromStream", FileNamePdf, streamRef);
+
+    }
+
+    private Task DeleteDownloadFilePdf()
+    {
+        var pathBaks = Path.Combine(_pathBase, "Baks" + "\\Labels.pdf");
+        try
+        {
+            if (File.Exists(pathBaks))
+            {
+                File.Delete(pathBaks);
+            }
+
+            _okayDownloadPdf = false;
+            _okayDeletePdf = false;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task Download()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DOWNLOAD?");
+        if (confirmed)
+        {
+            await DownloadFileFromStream();
+        }
+    }
+
+    private async Task Delete()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DELETE?");
+        if (confirmed)
+        {
+            await DeleteDownloadFile();
+        }
+    }
+    
+    private async Task DownloadPdf()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DOWNLOAD?");
+        if (confirmed)
+        {
+            await DownloadFileFromStreamPdf();
+        }
+    }
+
+    private async Task DeletePdf()
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Are you sure you want to DELETE?");
+        if (confirmed)
+        {
+            await DeleteDownloadFilePdf();
+        }
+    }
+
+    private void NavigateToYourUrl() => NavigationManager.NavigateTo("/backups");
+
+}
+
